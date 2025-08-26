@@ -1,61 +1,47 @@
+@Library('my-shared-library') _
+
 pipeline {
     agent any
-
-    environment {
-        DOCKER_IMAGE = 'alaa178/my-java-app'
-    }
-
     parameters {
-        string(name: 'IMAGE_TAG', defaultValue: "build-${env.BUILD_NUMBER}", description: 'Docker image tag')
-        booleanParam(name: 'PUSH_IMAGE', defaultValue: true, description: 'Push image to Docker Hub?')
+        string(name: 'BRANCH_NAME', defaultValue: 'main', description: 'Git Branch to build')
+        string(name: 'IMAGE_TAG', defaultValue: 'latest', description: 'Docker Image Tag')
     }
 
     stages {
         stage('Checkout') {
             steps {
-                checkout scm
+                git branch: "${params.BRANCH_NAME}", url: 'https://github.com/alaaosama72/my-java-app.git'
             }
         }
 
-        stage('Build JAR') {
-            steps {
-                sh """#!/bin/bash
-                mvn clean package -DskipTests
-                """
-            }
-        }
-
-        stage('Build Docker Image') {
-            steps {
-                sh """#!/bin/bash
-                docker build -t $DOCKER_IMAGE:${params.IMAGE_TAG} .
-                """
-            }
-        }
-
-        stage('Docker Login & Push') {
-            when { expression { return params.PUSH_IMAGE } }
-            steps {
-                withCredentials([usernamePassword(credentialsId: 'dockerhub-creds',
-                                                  usernameVariable: 'DOCKER_USERNAME',
-                                                  passwordVariable: 'DOCKER_PASSWORD')]) {
-                    sh """#!/bin/bash
-                    echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
-                    docker push $DOCKER_IMAGE:${params.IMAGE_TAG}
-                    """
+        stage('Build & Test') {
+            parallel {
+                stage('Build JAR') {
+                    steps {
+                        buildJar()
+                    }
+                }
+                stage('Run Tests') {
+                    steps {
+                        sh 'mvn test'
+                    }
                 }
             }
         }
-    }
 
-    post {
-        always {
-            cleanWs()
-            sh """#!/bin/bash
-            docker logout || true
-            docker image prune -f || true
-            """
+        stage('Docker Build & Push') {
+            steps {
+                buildDocker(params.IMAGE_TAG)
+                pushDocker(params.IMAGE_TAG)
+            }
+        }
+
+        stage('Post Actions') {
+            steps {
+                cleanWs()
+                sh 'docker logout || true'
+                sh 'docker image prune -f || true'
+            }
         }
     }
 }
-
