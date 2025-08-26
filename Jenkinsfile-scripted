@@ -1,0 +1,24 @@
+node {
+    stage('Checkout') {
+        checkout scm
+    }
+    stage('Build JAR') {
+        sh 'mvn clean package -DskipTests'
+    }
+    stage('Build Docker') {
+        sh 'docker build -t alaa178/my-java-app:build-${env.BUILD_NUMBER} .'
+    }
+    stage('Docker Login & Push') {
+        withCredentials([usernamePassword(credentialsId: 'dockerhub-creds',
+                                          usernameVariable: 'DOCKER_USERNAME',
+                                          passwordVariable: 'DOCKER_PASSWORD')]) {
+            sh 'echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin'
+            sh 'docker push alaa178/my-java-app:build-${env.BUILD_NUMBER}'
+        }
+    }
+    stage('Post Actions') {
+        cleanWs()
+        sh 'docker logout || true'
+        sh 'docker image prune -f || true'
+    }
+}
