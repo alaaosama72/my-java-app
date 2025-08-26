@@ -19,13 +19,17 @@ pipeline {
 
         stage('Build JAR') {
             steps {
-                sh 'mvn clean package -DskipTests'
+                sh """#!/bin/bash
+                mvn clean package -DskipTests
+                """
             }
         }
 
         stage('Build Docker Image') {
             steps {
-                sh 'docker build -t $DOCKER_IMAGE:${params.IMAGE_TAG} .'
+                sh """#!/bin/bash
+                docker build -t $DOCKER_IMAGE:${params.IMAGE_TAG} .
+                """
             }
         }
 
@@ -35,8 +39,10 @@ pipeline {
                 withCredentials([usernamePassword(credentialsId: 'dockerhub-creds',
                                                   usernameVariable: 'DOCKER_USERNAME',
                                                   passwordVariable: 'DOCKER_PASSWORD')]) {
-                    sh 'echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin'
-                    sh 'docker push $DOCKER_IMAGE:${params.IMAGE_TAG}'
+                    sh """#!/bin/bash
+                    echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
+                    docker push $DOCKER_IMAGE:${params.IMAGE_TAG}
+                    """
                 }
             }
         }
@@ -45,8 +51,11 @@ pipeline {
     post {
         always {
             cleanWs()
-            sh 'docker logout || true'
-            sh 'docker image prune -f || true'
+            sh """#!/bin/bash
+            docker logout || true
+            docker image prune -f || true
+            """
         }
     }
 }
+
